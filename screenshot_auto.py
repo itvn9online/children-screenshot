@@ -5,6 +5,38 @@ import pyautogui
 import threading
 import win32con
 import win32gui
+import ftplib
+import json
+
+# Đọc thông tin FTP từ file cấu hình ngoài (ftp_config.json)
+FTP_HOST = None
+FTP_USER = None
+FTP_PASS = None
+FTP_DIR = None
+ftp_config_path = os.path.join(os.path.dirname(__file__), 'ftp_config.json')
+if os.path.exists(ftp_config_path):
+    try:
+        with open(ftp_config_path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+            FTP_HOST = cfg.get('host')
+            FTP_USER = cfg.get('user')
+            FTP_PASS = cfg.get('pass')
+            FTP_DIR = cfg.get('dir', '/')
+    except Exception as e:
+        print(f'Lỗi đọc file cấu hình FTP: {e}')
+
+def upload_to_ftp(local_file, remote_file):
+    if not (FTP_HOST and FTP_USER and FTP_PASS):
+        return  # Không upload nếu thiếu thông tin
+    try:
+        with ftplib.FTP(FTP_HOST, FTP_USER, FTP_PASS) as ftp:
+            if FTP_DIR:
+                ftp.cwd(FTP_DIR)
+            with open(local_file, "rb") as f:
+                ftp.storbinary(f"STOR {remote_file}", f)
+        print(f"Đã upload lên FTP: {remote_file}")
+    except Exception as e:
+        print(f"Lỗi upload FTP: {e}")
 
 sleeping = threading.Event()
 
@@ -68,6 +100,9 @@ try:
         # Lưu ảnh vào file
         screenshot.save(filepath)
         print(f'Đã lưu: {filepath}')
+        # Sau khi lưu ảnh:
+        remote_filename = filename  # hoặc đổi tên nếu muốn
+        upload_to_ftp(filepath, remote_filename)
         # Đợi 30 giây trước khi chụp tiếp
         time.sleep(interval)
 except KeyboardInterrupt:
