@@ -110,11 +110,6 @@ os.makedirs(save_dir, exist_ok=True)
 interval = 30  # Thời gian lặp lại (giây)
 print(f'Bắt đầu chụp màn hình mỗi {interval} giây. Ảnh sẽ lưu ở {save_dir}')
 
-# Dọn dẹp file cũ hơn 7 ngày khi khởi động chương trình
-print('Bắt đầu dọn dẹp file cũ hơn 7 ngày...')
-cleanup_old_files(save_dir, days_to_keep=7)
-print('Hoàn thành dọn dẹp file cũ.')
-
 # Hàm xóa file và thư mục cũ hơn số ngày được chỉ định
 def cleanup_old_files(base_dir, days_to_keep=7):
     """
@@ -155,6 +150,11 @@ def cleanup_old_files(base_dir, days_to_keep=7):
                     
     except Exception as e:
         print(f'Lỗi khi xóa file cũ: {e}')
+
+# Dọn dẹp file cũ hơn 7 ngày khi khởi động chương trình
+print('Bắt đầu dọn dẹp file cũ hơn 7 ngày...')
+cleanup_old_files(save_dir, days_to_keep=7)
+print('Hoàn thành dọn dẹp file cũ.')
 
 # Vòng lặp chính của chương trình
 try:
