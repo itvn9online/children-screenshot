@@ -1,5 +1,7 @@
 # Hướng dẫn cài đặt và sử dụng ứng dụng chụp màn hình tự động
 
+https://github.com/itvn9online/children-screenshot
+
 ## 1. Cài đặt Python và các thư viện cần thiết
 
 - Cài Python 3 nếu máy chưa có: https://www.python.org/downloads/
