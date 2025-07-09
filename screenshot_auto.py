@@ -10,6 +10,12 @@ import ftplib               # Upload file lên FTP server
 import json                 # Đọc file cấu hình JSON
 import shutil               # Xóa thư mục và file
 
+# Cấu hình thư mục và tham số
+# Thư mục lưu ảnh gốc
+save_dir = r'D:\children-screenshot'
+# Tạo thư mục lưu ảnh nếu chưa tồn tại
+os.makedirs(save_dir, exist_ok=True)
+
 # Khai báo biến toàn cục cho thông tin FTP
 # Đọc thông tin FTP từ file cấu hình ngoài (ftp_config.json)
 FTP_HOST = None  # Địa chỉ FTP server
@@ -19,6 +25,10 @@ FTP_DIR = None   # Thư mục trên FTP server
 
 # Tạo đường dẫn tới file cấu hình FTP
 ftp_config_path = os.path.join(os.path.dirname(__file__), 'ftp_config.json')
+# Kiểm tra nếu file cấu hình FTP tồn tại
+if not os.path.exists(ftp_config_path):
+    # thiết lập path tĩnh dựa theo save_dir
+    ftp_config_path = os.path.join(save_dir, 'ftp_config.json')
 
 # Kiểm tra và đọc file cấu hình FTP nếu tồn tại
 if os.path.exists(ftp_config_path):
@@ -101,12 +111,6 @@ class PowerBroadcast:
 # Khởi tạo PowerBroadcast để lắng nghe sự kiện power
 PowerBroadcast()
 
-# Cấu hình thư mục và tham số
-# Thư mục lưu ảnh gốc
-save_dir = r'D:\children-screenshot'
-# Tạo thư mục lưu ảnh nếu chưa tồn tại
-os.makedirs(save_dir, exist_ok=True)
-
 interval = 30  # Thời gian lặp lại (giây)
 print(f'Bắt đầu chụp màn hình mỗi {interval} giây. Ảnh sẽ lưu ở {save_dir}')
 
@@ -186,7 +190,8 @@ try:
         print(f'Đã lưu: {filepath}')
         
         # Upload ảnh lên FTP server (nếu có cấu hình)
-        remote_filename = filename  # Tên file trên FTP server
+        # Tạo tên file trên FTP bao gồm ngày tháng năm (tái sử dụng date_folder)
+        remote_filename = f"{date_folder}_{filename}"  # Tên file trên FTP server với ngày
         upload_to_ftp(filepath, remote_filename)
         
         # Đợi 30 giây trước khi chụp tiếp
