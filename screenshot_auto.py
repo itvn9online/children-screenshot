@@ -6,15 +6,23 @@ import pyautogui            # Chụp màn hình
 import threading            # Xử lý đa luồng
 import win32con             # Hằng số của Windows API
 import win32gui             # Windows GUI API
+import win32api             # Windows API để lấy thông tin idle time
 import ftplib               # Upload file lên FTP server
 import json                 # Đọc file cấu hình JSON
 import shutil               # Xóa thư mục và file
+import ctypes               # Gọi Windows API
+from ctypes import wintypes # Kiểu dữ liệu Windows
+import sys                  # Thông tin hệ thống để kiểm tra .exe
 
 # Cấu hình thư mục và tham số
-# Thư mục lưu ảnh gốc
-save_dir = r'D:\children-screenshot'
-# Tạo thư mục lưu ảnh nếu chưa tồn tại
-os.makedirs(save_dir, exist_ok=True)
+# Xác định thư mục lưu ảnh dựa trên cách chạy chương trình
+if getattr(sys, 'frozen', False):
+    # Nếu chạy từ file .exe (PyInstaller), lùi lại 1 thư mục
+    exe_dir = os.path.dirname(sys.executable)
+    save_dir = os.path.dirname(exe_dir)  # Lùi lại 1 thư mục
+else:
+    # Nếu chạy trực tiếp từ file .py, sử dụng thư mục hiện tại
+    save_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Khai báo biến toàn cục cho thông tin FTP
 # Đọc thông tin FTP từ file cấu hình ngoài (ftp_config.json)
@@ -22,7 +30,7 @@ FTP_HOST = None  # Địa chỉ FTP server
 FTP_USER = None  # Tên đăng nhập FTP
 FTP_PASS = None  # Mật khẩu FTP
 FTP_DIR = None   # Thư mục trên FTP server
-INTERVAL = 30    # Thời gian lặp lại (giây), mặc định 30 giây
+INTERVAL = 60    # Thời gian lặp lại (giây), mặc định 60 giây
 
 # Tạo đường dẫn tới file cấu hình FTP
 ftp_config_path = os.path.join(os.path.dirname(__file__), 'ftp_config.json')
@@ -40,7 +48,7 @@ if os.path.exists(ftp_config_path):
             FTP_USER = cfg.get('user')          # Lấy username
             FTP_PASS = cfg.get('pass')          # Lấy password
             FTP_DIR = cfg.get('dir', '/')       # Lấy thư mục, mặc định là /
-            INTERVAL = cfg.get('interval', 30)  # Lấy thời gian interval, mặc định 30 giây
+            INTERVAL = cfg.get('interval', 60)  # Lấy thời gian interval, mặc định 60 giây
     except Exception as e:
         print(f'Lỗi đọc file cấu hình FTP: {e}')
 
@@ -48,7 +56,7 @@ if os.path.exists(ftp_config_path):
 def upload_to_ftp(local_file, remote_file):
     # Kiểm tra xem có đủ thông tin FTP không
     if not (FTP_HOST and FTP_USER and FTP_PASS):
-        return  # Không upload nếu thiếu thông tin
+        return False  # Không upload nếu thiếu thông tin
     try:
         # Kết nối FTP và upload file
         with ftplib.FTP(FTP_HOST, FTP_USER, FTP_PASS) as ftp:
@@ -58,62 +66,48 @@ def upload_to_ftp(local_file, remote_file):
             # Mở file local và upload lên FTP
             with open(local_file, "rb") as f:
                 ftp.storbinary(f"STOR {remote_file}", f)
-        print(f"Đã upload lên FTP: {remote_file}")
+        print(f"Đã upload lên FTP: {remote_file} via {FTP_USER}:{FTP_HOST}")
+        return True  # Upload thành công
     except Exception as e:
         print(f"Lỗi upload FTP: {e}")
+        return False  # Upload thất bại
 
-# Event để đồng bộ trạng thái sleep/wake của máy tính
-sleeping = threading.Event()
-
-# Lớp xử lý sự kiện power management của Windows
-class PowerBroadcast:
-    def __init__(self):
-        self.hwnd = None  # Handle của window
-        # Tạo thread để lắng nghe sự kiện power
-        self.thread = threading.Thread(target=self.listen, daemon=True)
-        self.thread.start()
-
-    def listen(self):
-        # Tạo window class để nhận message từ Windows
-        wc = win32gui.WNDCLASS()
-        wc.lpfnWndProc = self.wnd_proc          # Gán hàm xử lý message
-        wc.lpszClassName = 'PowerBroadcastListener'  # Tên class
+# Hàm kiểm tra thời gian idle của người dùng (không có hoạt động chuột/bàn phím)
+def get_idle_time():
+    """
+    Lấy thời gian idle của người dùng tính bằng mili giây
+    Trả về số giây người dùng không có hoạt động
+    """
+    try:
+        # Sử dụng Windows API để lấy thời gian cuối cùng có input
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [
+                ('cbSize', wintypes.UINT),
+                ('dwTime', wintypes.DWORD),
+            ]
         
-        # Đăng ký window class
-        class_atom = win32gui.RegisterClass(wc)
+        lastInputInfo = LASTINPUTINFO()
+        lastInputInfo.cbSize = ctypes.sizeof(LASTINPUTINFO)
         
-        # Tạo window ẩn để nhận power broadcast message
-        self.hwnd = win32gui.CreateWindow(
-            class_atom, 'PowerBroadcastListener', 0, 0, 0, 0, 0, 0, 0, 0, None
-        )
-        
-        # Bắt đầu lắng nghe message
-        win32gui.PumpMessages()
+        # Gọi GetLastInputInfo để lấy thời gian input cuối cùng
+        if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lastInputInfo)):
+            # Lấy thời gian hiện tại
+            current_time = ctypes.windll.kernel32.GetTickCount()
+            # Tính thời gian idle (mili giây)
+            idle_time_ms = current_time - lastInputInfo.dwTime
+            # Chuyển đổi sang giây
+            return idle_time_ms / 1000.0
+        else:
+            return 0
+    except Exception as e:
+        print(f"Lỗi khi lấy idle time: {e}")
+        return 0
 
-    # Hàm xử lý các Windows message
-    def wnd_proc(self, hwnd, msg, wparam, lparam):
-        # Kiểm tra nếu là power broadcast message
-        if msg == win32con.WM_POWERBROADCAST:
-            # Máy tính chuẩn bị sleep/suspend
-            if wparam == win32con.PBT_APMSUSPEND:
-                print('Phát hiện máy sleep, tạm dừng chụp ảnh.')
-                sleeping.set()  # Đặt flag để dừng chụp ảnh
-            # Máy tính đã wake up/resume
-            elif wparam in (
-                win32con.PBT_APMRESUMEAUTOMATIC,   # Resume tự động
-                win32con.PBT_APMRESUMECRITICAL,    # Resume khẩn cấp
-                win32con.PBT_APMRESUMESUSPEND,     # Resume từ suspend
-            ):
-                print('Máy đã resume, tiếp tục chụp ảnh.')
-                sleeping.clear()  # Xóa flag để tiếp tục chụp ảnh
-        
-        # Gọi hàm xử lý message mặc định
-        return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
-
-# Khởi tạo PowerBroadcast để lắng nghe sự kiện power
-PowerBroadcast()
+# Đã thay đổi từ kiểm tra sleep sang kiểm tra idle time của người dùng
+# Không cần PowerBroadcast nữa
 
 print(f'Bắt đầu chụp màn hình mỗi {INTERVAL} giây. Ảnh sẽ lưu ở {save_dir}')
+print('Chương trình sẽ bỏ qua chụp ảnh nếu người dùng không hoạt động quá 30 giây.')
 
 # Hàm xóa file và thư mục cũ hơn số ngày được chỉ định
 def cleanup_old_files(base_dir, days_to_keep=7):
@@ -164,9 +158,13 @@ print('Hoàn thành dọn dẹp file cũ.')
 # Vòng lặp chính của chương trình
 try:
     while True:
-        # Kiểm tra xem máy có đang sleep không
-        if sleeping.is_set():
-            time.sleep(1)  # Chờ 1 giây rồi kiểm tra lại
+        # Kiểm tra thời gian idle của người dùng
+        idle_time = get_idle_time()
+        
+        # Nếu người dùng không hoạt động quá 30 giây thì bỏ qua việc chụp ảnh
+        if idle_time > 30:
+            print(f'Người dùng không hoạt động trong {idle_time:.1f} giây, bỏ qua chụp ảnh.')
+            time.sleep(10)  # Chờ 10 giây rồi kiểm tra lại
             continue
         
         # Lấy thời gian hiện tại
@@ -193,7 +191,17 @@ try:
         # Upload ảnh lên FTP server (nếu có cấu hình)
         # Tạo tên file trên FTP bao gồm ngày tháng năm (tái sử dụng date_folder)
         remote_filename = f"{date_folder}_{filename}"  # Tên file trên FTP server với ngày
-        upload_to_ftp(filepath, remote_filename)
+        upload_success = upload_to_ftp(filepath, remote_filename)
+        
+        # Nếu upload thành công thì xóa file local
+        if upload_success:
+            try:
+                os.remove(filepath)
+                print(f"Đã xóa file local: {filepath}")
+            except Exception as e:
+                print(f"Lỗi khi xóa file local: {e}")
+        else:
+            print(f"Giữ lại file local do upload thất bại: {filepath}")
         
         # Đợi theo thời gian interval được cấu hình trước khi chụp tiếp
         time.sleep(INTERVAL)

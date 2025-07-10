@@ -293,6 +293,7 @@ function check_login()
             }
             ?>
         </ul>
+        <div><a href="index.php">Tải lại trang...</a></div>
         <script>
             // Hiển thị iframe khi click vào link trong danh sách ảnh
             document.addEventListener('DOMContentLoaded', function() {
