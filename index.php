@@ -29,9 +29,8 @@ function check_login()
         return "Vui lòng nhập tên người dùng.";
     }
 
-    // so sánh tên người dùng nhập vào với tên trong file username.txt
-    // nếu đúng thì đăng nhập thành công
-    if ($username === file_get_contents('../username.txt')) {
+    // kiểm tra nếu username không rỗng và tồn tại trong file username.txt
+    if (strpos(file_get_contents('../username.txt'), $username) !== false) {
         $_SESSION['loggedin'] = $username;
 
         sleep(1); // tạm dừng 1 giây để tránh spam đăng nhập
@@ -75,6 +74,7 @@ function check_login()
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
+            padding-bottom: 90px;
         }
 
         h1 {
@@ -155,36 +155,27 @@ function check_login()
             display: block;
             /* Hiển thị iframe khi có class 'show' */
         }
-    </style>
-    <script>
-        // Hiển thị iframe khi click vào link trong danh sách ảnh
-        document.addEventListener('DOMContentLoaded', function() {
-            const iframe = document.getElementById('target_eb_iframe');
-            const imageLinks = document.querySelectorAll('.click-open-img a');
 
-            imageLinks.forEach(function(link) {
-                link.addEventListener('click', function(e) {
-                    // Hiển thị iframe
-                    iframe.classList.add('show');
-                });
-            });
-        });
-    </script>
+        .click-open-img a.clicked {
+            color: red;
+            /* Đổi màu chữ thành đỏ khi link được click */
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Quản lý ảnh</h1>
+    <h1><a href="index.php">Quản lý ảnh</a></h1>
     <?php
 
     // kiểm tra xem người dùng đã đăng nhập chưa
-    if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] != file_get_contents('../username.txt')) {
+    if (!isset($_SESSION['loggedin']) || strpos(file_get_contents('../username.txt'), $_SESSION['loggedin']) === false) {
         // hiển thị form đăng nhập
     ?>
         <div>
             <p class="for-check_login"><?php echo check_login(); ?></p>
             <h2>Đăng nhập</h2>
             <p>Vui lòng nhập tên người dùng để truy cập vào danh sách ảnh.</p>
-            <p>Chỉ có thể đăng nhập bằng tên người dùng đã được lưu trong file <code>username.txt</code>.</p>
+            <p>Chỉ có thể đăng nhập bằng tên người dùng đã được lưu trong file <strong>username.txt</strong>.</p>
             <p>File này sẽ được tạo trong quá trình cài đặt.</p>
             <form method="post" action="">
                 <label for="username">Username:</label>
@@ -209,7 +200,12 @@ function check_login()
                 // nếu có tham số 'raw' thì hiển thị ảnh trực tiếp
                 if (isset($_GET['raw'])) {
                     // đọc file ảnh và hiển thị ảnh bằng php
-                    header('Content-Type: image/jpeg'); // hoặc image/png, image/gif tùy theo loại ảnh
+                    // hoặc image/png, image/gif tùy theo loại ảnh
+                    if (strpos($img, '.png')) {
+                        header('Content-Type: image/png');
+                    } else {
+                        header('Content-Type: image/jpeg');
+                    }
                     readfile($dir . '/' . $img);
                 } else {
                     // hiển thị ảnh trong HTML wrapper với CSS để fit iframe
@@ -265,16 +261,109 @@ function check_login()
         // hiển thị danh sách ảnh
         ?>
         <h1>Danh sách ảnh trong thư mục screenshot</h1>
+        <?php
+
+        // 
+        $days = [];
+        for ($i = 0; $i < 7; $i++) {
+            $day = date('Y-m-d', strtotime("-$i day"));
+            $days[] = "<a href='index.php?day=$day'>$day</a>";
+        }
+        echo "<p>Chọn ngày để xem ảnh: " . implode(' | ', $days) . "</p>";
+
+        ?>
         <ul class="click-open-img">
             <?php
+
+            // lấy ngày cần hiển thị, mặc định là hôm nay
+            $filter_day = isset($_GET['day']) ? $_GET['day'] : date('Y-m-d');
+
+            // 
             foreach ($images as $image) {
                 // kiểm tra nếu file là ảnh
                 if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $image)) {
+                    // nếu ảnh có ngày cần tìm thì mới hiển thị
+                    if (strpos($image, $filter_day . '_screenshot_') === false) {
+                        continue; // bỏ qua ảnh không phải cần tìm
+                    }
+
+                    // 
                     echo "<li><a href='index.php?img=$image' target='target_eb_iframe'>$image</a></li>";
                 }
             }
             ?>
         </ul>
+        <script>
+            // Hiển thị iframe khi click vào link trong danh sách ảnh
+            document.addEventListener('DOMContentLoaded', function() {
+                const iframe = document.getElementById('target_eb_iframe');
+                const imageLinks = document.querySelectorAll('.click-open-img a');
+
+                imageLinks.forEach(function(link) {
+                    link.addEventListener('click', function(e) {
+                        // Hiển thị iframe
+                        iframe.classList.add('show');
+
+                        // bỏ clicked ở các link khác
+                        imageLinks.forEach(function(otherLink) {
+                            otherLink.classList.remove('clicked');
+                        });
+                        // thêm class đánh dấu đỏ khi click vào link
+                        link.classList.add('clicked');
+
+                        // cắt lấy tên ảnh từ href
+                        const imgName = link.getAttribute('href').split('=')[1];
+                        // thay đổi url hiện tại của web
+                        history.pushState(null, '', 'index.php?show_img=' + imgName);
+                    });
+                });
+
+                // nếu có tham số 'img' trong URL thì tự động mở ảnh
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('show_img')) {
+                    setTimeout(function() {
+                        const imgName = urlParams.get('show_img');
+                        // tìm link tương ứng với ảnh
+                        const link = document.querySelector('.click-open-img a[href="index.php?img=' + imgName + '"]');
+                        if (link) {
+                            link.click(); // tự động click vào link để mở ảnh
+                        }
+                    }, 500);
+                } else {
+                    // Tự động cuộn xuống cuối trang chỉ một lần khi nạp trang
+                    setTimeout(function() {
+                        window.scrollTo(0, document.body.scrollHeight);
+
+                        // tự động mở ảnh cuôi cùng nếu có
+                        const lastImage = document.querySelector('.click-open-img li:last-child a');
+                        if (lastImage) {
+                            lastImage.click(); // tự động click vào ảnh cuối cùng
+                        }
+                    }, 500);
+                }
+
+                // tự động tải lại trang sau mỗi 5 phút
+                setTimeout(function() {
+                    location.reload();
+                }, 5 * 60 * 1000); // 5 phút
+            });
+
+            // Ẩn iframe khi bấm escape
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const iframe = document.getElementById('target_eb_iframe');
+                    const imageLinks = document.querySelectorAll('.click-open-img a');
+
+                    iframe.classList.remove('show'); // ẩn iframe
+                    // xóa class clicked ở tất cả các link
+                    imageLinks.forEach(function(link) {
+                        link.classList.remove('clicked');
+                    });
+                    // quay về trang chính
+                    history.pushState(null, '', 'index.php');
+                }
+            });
+        </script>
         <iframe id="target_eb_iframe" name="target_eb_iframe" title="EB iframe" src="about:blank" width="333" height="550"></iframe>
     <?php
     }
