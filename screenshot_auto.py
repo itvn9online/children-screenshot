@@ -22,6 +22,7 @@ FTP_HOST = None  # Địa chỉ FTP server
 FTP_USER = None  # Tên đăng nhập FTP
 FTP_PASS = None  # Mật khẩu FTP
 FTP_DIR = None   # Thư mục trên FTP server
+INTERVAL = 30    # Thời gian lặp lại (giây), mặc định 30 giây
 
 # Tạo đường dẫn tới file cấu hình FTP
 ftp_config_path = os.path.join(os.path.dirname(__file__), 'ftp_config.json')
@@ -39,6 +40,7 @@ if os.path.exists(ftp_config_path):
             FTP_USER = cfg.get('user')          # Lấy username
             FTP_PASS = cfg.get('pass')          # Lấy password
             FTP_DIR = cfg.get('dir', '/')       # Lấy thư mục, mặc định là /
+            INTERVAL = cfg.get('interval', 30)  # Lấy thời gian interval, mặc định 30 giây
     except Exception as e:
         print(f'Lỗi đọc file cấu hình FTP: {e}')
 
@@ -111,8 +113,7 @@ class PowerBroadcast:
 # Khởi tạo PowerBroadcast để lắng nghe sự kiện power
 PowerBroadcast()
 
-interval = 30  # Thời gian lặp lại (giây)
-print(f'Bắt đầu chụp màn hình mỗi {interval} giây. Ảnh sẽ lưu ở {save_dir}')
+print(f'Bắt đầu chụp màn hình mỗi {INTERVAL} giây. Ảnh sẽ lưu ở {save_dir}')
 
 # Hàm xóa file và thư mục cũ hơn số ngày được chỉ định
 def cleanup_old_files(base_dir, days_to_keep=7):
@@ -194,8 +195,8 @@ try:
         remote_filename = f"{date_folder}_{filename}"  # Tên file trên FTP server với ngày
         upload_to_ftp(filepath, remote_filename)
         
-        # Đợi 30 giây trước khi chụp tiếp
-        time.sleep(interval)
+        # Đợi theo thời gian interval được cấu hình trước khi chụp tiếp
+        time.sleep(INTERVAL)
         
 except KeyboardInterrupt:
     # Thoát chương trình khi nhấn Ctrl+C

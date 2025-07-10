@@ -344,7 +344,8 @@ function check_login()
 
                 // tự động tải lại trang sau mỗi 5 phút
                 setTimeout(function() {
-                    location.reload();
+                    // location.reload();
+                    window.location = 'https://<?php echo $_SERVER['HTTP_HOST']; ?>/index.php'; // quay về trang chính
                 }, 5 * 60 * 1000); // 5 phút
             });
 
