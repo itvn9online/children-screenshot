@@ -25,7 +25,7 @@ function check_login()
     $username = $_POST['username'] ?? '';
 
     // kiểm tra xem người dùng nhập đúng tên trong file username.txt không
-    if (empty($username)) {
+    if (empty($username) || strlen($username) < 8) {
         return "Vui lòng nhập tên người dùng.";
     }
 
@@ -179,7 +179,7 @@ function check_login()
             <p>File này sẽ được tạo trong quá trình cài đặt.</p>
             <form method="post" action="">
                 <label for="username">Username:</label>
-                <input type="text" name="username" id="username" required>
+                <input type="text" name="username" id="username" autofocus required>
                 <br>
                 <button type="submit">Đăng nhập</button>
             </form>
