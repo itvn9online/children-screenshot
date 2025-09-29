@@ -5,53 +5,70 @@ https://github.com/itvn9online/children-screenshot
 ## 1. Cài đặt Python và các thư viện cần thiết
 
 - Cài Python 3 nếu máy chưa có: https://www.python.org/downloads/
-- Mở PowerShell, chạy lệnh:
-  ```
-  pip install pyautogui pillow
-  ```
-
-## 2. Cài đặt PyInstaller (nếu muốn tạo file .exe)
-
-- Chạy lệnh:
-  ```
-  pip install pyinstaller
-  ```
-
-### 2.1. Để script tự động dừng khi máy sleep và tiếp tục khi máy resume trên Windows
-
-- Chạy lệnh:
-  ```
-  pip install pywin32
-  ```
-
-## 3. Sử dụng script Python
-
-- File chính: `screenshot_auto.py` trong thư mục `D:\children-screenshot`
-- Để chạy script, dùng lệnh:
-  ```
-  python D:\children-screenshot\screenshot_auto.py
-  ```
-- Ảnh sẽ được lưu tự động vào thư mục con theo ngày trong `D:\children-screenshot`
-
-## 4. Đóng gói thành file .exe chạy ẩn
-
-- Mở PowerShell, chuyển đến thư mục chứa script:
+- Mở PowerShell, chuyển đến thư mục dự án và chạy lệnh:
   ```
   cd D:\children-screenshot
+  pip install -r requirements.txt
   ```
-- Tạo file .exe chạy ẩn:
+
+## 2. Cấu hình ứng dụng
+
+### 2.1. Cấu hình FTP (tùy chọn)
+
+- Copy file `ftp_config-sample.json` thành `ftp_config.json`
+- Chỉnh sửa thông tin FTP server và mật khẩu thoát ứng dụng:
+  ```json
+  {
+  	"host": "your-ftp-server.com",
+  	"user": "username",
+  	"pass": "password",
+  	"dir": "/screenshots",
+  	"interval": 60
+  }
   ```
+
+## 3. Sử dụng ứng dụng
+
+### 3.1. Chạy từ Python
+
+- Chạy lệnh:
+  ```
+  python screenshot_auto.py
+  ```
+
+### 3.2. Chạy từ file .exe
+
+- Tạo file .exe (chạy ở system tray):
+  ```
+  pip install pyinstaller
   pyinstaller --noconsole --onefile screenshot_auto.py
   ```
-- File .exe sẽ nằm trong thư mục `dist`.
+- File .exe sẽ nằm trong thư mục `dist`
+- Tham số `--noconsole`: Không hiển thị cửa sổ console, chạy với system tray
 
-## 5. Thiết lập khởi động cùng Windows
+## 4. Sử dụng System Tray
 
-- Copy file `.exe` hoặc file batch `run_screenshot_auto.bat` vào thư mục Startup:
-  - Nhấn `Win + R`, nhập `shell:startup` rồi Enter.
-  - Dán file vào thư mục vừa mở.
+- Sau khi khởi động, chương trình sẽ chạy ở system tray (khay hệ thống)
+- Click phải vào icon để xem menu:
+  - **Trạng thái**: Xem thông tin trạng thái hiện tại
+  - **Thoát**: Thoát chương trình ngay lập tức
 
-## 6. Lưu ý
+## 5. Tính năng chính
 
-- Để dừng chương trình, nhấn `Ctrl + C` nếu chạy bằng cửa sổ dòng lệnh.
-- Nếu chạy file .exe, chương trình sẽ chạy ẩn, chỉ có thể dừng bằng Task Manager.
+- **Chụp màn hình tự động**: Mỗi 60 giây (có thể thay đổi trong cấu hình)
+- **Phát hiện user inactive**: Không chụp khi user không hoạt động > 30 giây
+- **Upload FTP tự động**: Upload và xóa file local sau khi upload thành công
+- **Tự động dọn dẹp**: Xóa file cũ hơn 7 ngày
+- **System tray**: Chạy ẩn với menu điều khiển đơn giản
+
+## 6. Web Interface
+
+- File `index.php` cung cấp giao diện web để xem ảnh đã chụp
+- Đặt file PHP trong thư mục web server cùng với thư mục screenshots
+- Truy cập qua browser để xem danh sách và preview ảnh
+
+## 7. Thiết lập khởi động cùng Windows
+
+- Copy file `.exe` vào thư mục Startup:
+  - Nhấn `Win + R`, nhập `shell:startup` rồi Enter
+  - Dán file .exe vào thư mục vừa mở

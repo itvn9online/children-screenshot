@@ -106,11 +106,13 @@ _modules/*
 nbproject/
 build/
 nbbuild/
-dist/
+# dist/
 nbdist/
 nbactions.xml
 nb-configuration.xml
 .nb-gradle/
+dist/*
+!dist/*.exe
 
 # Sublime Text
 *.tmlanguage.cache
@@ -159,3 +161,6 @@ ftp_config.json
 /user_guide/
 #/writable/
 
+# khong push cac file theo nam
+/2025-*
+/2026-*

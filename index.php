@@ -221,10 +221,13 @@ function check_login()
                                 margin: 0;
                                 padding: 0;
                                 background-color: #f0f0f0;
+                            }
+
+                            .image-container {
                                 display: flex;
                                 justify-content: center;
                                 align-items: center;
-                                min-height: 100vh;
+                                min-height: 80vh;
                             }
 
                             img {
@@ -240,7 +243,10 @@ function check_login()
                     </head>
 
                     <body>
-                        <img src="index.php?img=<?php echo urlencode($img); ?>&raw=1" alt="<?php echo htmlspecialchars($img); ?>">
+                        <h2 style="text-align: center;"><?php echo htmlspecialchars($img); ?></h2>
+                        <div class="image-container">
+                            <img src="index.php?img=<?php echo urlencode($img); ?>&raw=1" alt="<?php echo htmlspecialchars($img); ?>">
+                        </div>
                     </body>
 
                     </html>
@@ -343,11 +349,11 @@ function check_login()
                     }, 500);
                 }
 
-                // tự động tải lại trang sau mỗi 5 phút
+                // tự động tải lại trang sau mỗi 15 phút
                 setTimeout(function() {
                     // location.reload();
                     window.location = 'https://<?php echo $_SERVER['HTTP_HOST']; ?>/index.php'; // quay về trang chính
-                }, 5 * 60 * 1000); // 5 phút
+                }, 15 * 60 * 1000); // 15 phút
             });
 
             // Ẩn iframe khi bấm escape

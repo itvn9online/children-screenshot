@@ -13,6 +13,10 @@ import shutil               # Xóa thư mục và file
 import ctypes               # Gọi Windows API
 from ctypes import wintypes # Kiểu dữ liệu Windows
 import sys                  # Thông tin hệ thống để kiểm tra .exe
+import pystray              # System tray icon
+from PIL import Image       # Tạo icon cho system tray
+import tkinter as tk        # GUI cho dialog nhập mật khẩu
+from tkinter import messagebox, simpledialog
 
 # Cấu hình thư mục và tham số
 # Xác định thư mục lưu ảnh dựa trên cách chạy chương trình
@@ -72,6 +76,49 @@ def upload_to_ftp(local_file, remote_file):
         print(f"Lỗi upload FTP: {e}")
         return False  # Upload thất bại
 
+# Hàm xóa file và thư mục cũ hơn số ngày được chỉ định
+def cleanup_old_files(base_dir, days_to_keep=7):
+    """
+    Xóa các thư mục và file cũ hơn số ngày được chỉ định
+    
+    Args:
+        base_dir: Thư mục gốc chứa các thư mục con theo ngày
+        days_to_keep: Số ngày muốn giữ lại (mặc định 7 ngày)
+    """
+    try:
+        from datetime import timedelta
+        
+        # Tính toán ngày cắt (ngày cũ nhất được phép giữ lại)
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        
+        # Kiểm tra nếu thư mục gốc không tồn tại
+        if not os.path.exists(base_dir):
+            return
+        
+        # Duyệt qua tất cả các thư mục con
+        for item in os.listdir(base_dir):
+            item_path = os.path.join(base_dir, item)
+            
+            # Chỉ xử lý thư mục
+            if os.path.isdir(item_path):
+                try:
+                    # Kiểm tra xem tên thư mục có đúng định dạng YYYY-MM-DD không
+                    folder_date = datetime.strptime(item, '%Y-%m-%d')
+                    
+                    # Nếu thư mục cũ hơn ngày cắt, xóa nó
+                    if folder_date < cutoff_date:
+                        print(f'Đang xóa thư mục cũ: {item_path}')
+                        shutil.rmtree(item_path)  # Xóa thư mục và tất cả nội dung bên trong
+                        print(f'Đã xóa thư mục: {item_path}')
+                        
+                except ValueError:
+                    # Bỏ qua nếu tên thư mục không đúng định dạng ngày
+                    print(f'Bỏ qua thư mục không đúng định dạng: {item}')
+                    continue
+                    
+    except Exception as e:
+        print(f'Lỗi khi xóa file cũ: {e}')
+
 # Hàm kiểm tra thời gian idle của người dùng (không có hoạt động chuột/bàn phím)
 def get_idle_time():
     """
@@ -106,106 +153,156 @@ def get_idle_time():
 # Đã thay đổi từ kiểm tra sleep sang kiểm tra idle time của người dùng
 # Không cần PowerBroadcast nữa
 
-print(f'Bắt đầu chụp màn hình mỗi {INTERVAL} giây. Ảnh sẽ lưu ở {save_dir}')
-print('Chương trình sẽ bỏ qua chụp ảnh nếu người dùng không hoạt động quá 30 giây.')
+# Biến toàn cục để điều khiển vòng lặp chụp ảnh
+screenshot_running = True
+screenshot_thread = None
 
-# Hàm xóa file và thư mục cũ hơn số ngày được chỉ định
-def cleanup_old_files(base_dir, days_to_keep=7):
-    """
-    Xóa các thư mục và file cũ hơn số ngày được chỉ định
-    
-    Args:
-        base_dir: Thư mục gốc chứa các thư mục con theo ngày
-        days_to_keep: Số ngày muốn giữ lại (mặc định 7 ngày)
-    """
+# Tạo icon đơn giản cho system tray
+def create_tray_icon():
+    """Tạo icon 16x16 đơn giản cho system tray"""
     try:
-        # Tính toán ngày cắt (ngày cũ nhất được phép giữ lại)
-        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-        
-        # Kiểm tra nếu thư mục gốc không tồn tại
-        if not os.path.exists(base_dir):
-            return
-        
-        # Duyệt qua tất cả các thư mục con
-        for item in os.listdir(base_dir):
-            item_path = os.path.join(base_dir, item)
-            
-            # Chỉ xử lý thư mục
-            if os.path.isdir(item_path):
-                try:
-                    # Kiểm tra xem tên thư mục có đúng định dạng YYYY-MM-DD không
-                    folder_date = datetime.strptime(item, '%Y-%m-%d')
-                    
-                    # Nếu thư mục cũ hơn ngày cắt, xóa nó
-                    if folder_date < cutoff_date:
-                        print(f'Đang xóa thư mục cũ: {item_path}')
-                        shutil.rmtree(item_path)  # Xóa thư mục và tất cả nội dung bên trong
-                        print(f'Đã xóa thư mục: {item_path}')
-                        
-                except ValueError:
-                    # Bỏ qua nếu tên thư mục không đúng định dạng ngày
-                    print(f'Bỏ qua thư mục không đúng định dạng: {item}')
-                    continue
-                    
+        # Tạo icon đơn giản màu xanh lá
+        image = Image.new('RGB', (16, 16), color=(0, 128, 0))
+        return image
+    except:
+        # Nếu không tạo được icon, trả về None
+        return None
+
+def show_status():
+    """Hiển thị trạng thái chương trình"""
+    try:
+        # Sử dụng system tray notification thay vì messagebox
+        import plyer
+        plyer.notification.notify(
+            title="Children Screenshot Monitor",
+            message=f"Trạng thái: Đang chạy\nThư mục: {save_dir}\nInterval: {INTERVAL}s",
+            timeout=5
+        )
+    except ImportError:
+        # Fallback: In thông tin ra console
+        print("=== TRẠNG THÁI CHƯƠNG TRÌNH ===")
+        print(f"Chụp màn hình: Đang chạy")
+        print(f"Thư mục: {save_dir}")
+        print(f"Interval: {INTERVAL}s")
+        print("================================")
+
+def exit_application(icon):
+    """Thoát chương trình ngay lập tức"""
+    try:
+        global screenshot_running
+        screenshot_running = False
+        icon.stop()
+        print('Thoát chương trình.')
+        os._exit(0)
     except Exception as e:
-        print(f'Lỗi khi xóa file cũ: {e}')
+        print(f"Lỗi trong exit_application: {e}")
+        # Force exit nếu có lỗi
+        os._exit(0)
 
-# Dọn dẹp file cũ hơn 7 ngày khi khởi động chương trình
-print('Bắt đầu dọn dẹp file cũ hơn 7 ngày...')
-cleanup_old_files(save_dir, days_to_keep=7)
-print('Hoàn thành dọn dẹp file cũ.')
+def setup_tray_icon():
+    """Thiết lập system tray icon"""
+    icon_image = create_tray_icon()
+    
+    # Tạo menu cho system tray
+    menu = pystray.Menu(
+        pystray.MenuItem("Trạng thái", show_status),
+        pystray.MenuItem("Thoát", exit_application)
+    )
+    
+    # Tạo system tray icon
+    icon = pystray.Icon("ChildrenScreenshot", icon_image, "Children Screenshot Monitor", menu)
+    
+    return icon
 
-# Vòng lặp chính của chương trình
-try:
-    while True:
-        # Kiểm tra thời gian idle của người dùng
-        idle_time = get_idle_time()
-        
-        # Nếu người dùng không hoạt động quá 30 giây thì bỏ qua việc chụp ảnh
-        if idle_time > 30:
-            print(f'Người dùng không hoạt động trong {idle_time:.1f} giây, bỏ qua chụp ảnh.')
-            time.sleep(10)  # Chờ 10 giây rồi kiểm tra lại
-            continue
-        
-        # Lấy thời gian hiện tại
-        now = datetime.now()
-        
-        # Tạo tên thư mục theo định dạng năm-tháng-ngày
-        date_folder = now.strftime('%Y-%m-%d')
-        folder_path = os.path.join(save_dir, date_folder)
-        
-        # Tạo thư mục ngày nếu chưa có
-        os.makedirs(folder_path, exist_ok=True)
-        
-        # Đặt tên file ảnh theo thời gian chụp (giờ-phút-giây)
-        filename = f'screenshot_{now.strftime('%H%M%S')}.png'
-        filepath = os.path.join(folder_path, filename)
-        
-        # Chụp màn hình
-        screenshot = pyautogui.screenshot()
-        
-        # Lưu ảnh vào file
-        screenshot.save(filepath)
-        print(f'Đã lưu: {filepath}')
-        
-        # Upload ảnh lên FTP server (nếu có cấu hình)
-        # Tạo tên file trên FTP bao gồm ngày tháng năm (tái sử dụng date_folder)
-        remote_filename = f"{date_folder}_{filename}"  # Tên file trên FTP server với ngày
-        upload_success = upload_to_ftp(filepath, remote_filename)
-        
-        # Nếu upload thành công thì xóa file local
-        if upload_success:
-            try:
-                os.remove(filepath)
-                print(f"Đã xóa file local: {filepath}")
-            except Exception as e:
-                print(f"Lỗi khi xóa file local: {e}")
-        else:
-            print(f"Giữ lại file local do upload thất bại: {filepath}")
-        
-        # Đợi theo thời gian interval được cấu hình trước khi chụp tiếp
-        time.sleep(INTERVAL)
-        
-except KeyboardInterrupt:
-    # Thoát chương trình khi nhấn Ctrl+C
-    print('Đã dừng chương trình.')
+print(f'Khởi tạo chương trình chụp màn hình. Ảnh sẽ lưu ở {save_dir}')
+print('Chương trình sẽ chạy ở system tray.')
+
+# Hàm chụp ảnh chạy trong thread riêng
+def screenshot_worker():
+    """Thread worker để chụp ảnh liên tục"""
+    global screenshot_running
+    
+    print(f'Bắt đầu chụp màn hình mỗi {INTERVAL} giây.')
+    print('Chương trình sẽ bỏ qua chụp ảnh nếu người dùng không hoạt động quá 30 giây.')
+    
+    try:
+        while screenshot_running:
+            if not screenshot_running:
+                time.sleep(1)
+                continue
+                
+            # Kiểm tra thời gian idle của người dùng
+            idle_time = get_idle_time()
+            
+            # Nếu người dùng không hoạt động quá 30 giây thì bỏ qua việc chụp ảnh
+            if idle_time > 30:
+                print(f'Người dùng không hoạt động trong {idle_time:.1f} giây, bỏ qua chụp ảnh.')
+                time.sleep(10)  # Chờ 10 giây rồi kiểm tra lại
+                continue
+            
+            # Lấy thời gian hiện tại
+            now = datetime.now()
+            
+            # Tạo tên thư mục theo định dạng năm-tháng-ngày
+            date_folder = now.strftime("%Y-%m-%d")
+            folder_path = os.path.join(save_dir, date_folder)
+            
+            # Tạo thư mục ngày nếu chưa có
+            os.makedirs(folder_path, exist_ok=True)
+            
+            # Đặt tên file ảnh theo thời gian chụp (giờ-phút-giây)
+            filename = f'screenshot_{now.strftime("%H%M%S")}.png'
+            filepath = os.path.join(folder_path, filename)
+            
+            # Chụp màn hình
+            screenshot = pyautogui.screenshot()
+            
+            # Lưu ảnh vào file
+            screenshot.save(filepath)
+            print(f'Đã lưu: {filepath}')
+            
+            # Upload ảnh lên FTP server (nếu có cấu hình)
+            # Tạo tên file trên FTP bao gồm ngày tháng năm (tái sử dụng date_folder)
+            remote_filename = f"{date_folder}_{filename}"  # Tên file trên FTP server với ngày
+            upload_success = upload_to_ftp(filepath, remote_filename)
+            
+            # Nếu upload thành công thì xóa file local
+            if upload_success:
+                try:
+                    os.remove(filepath)
+                    print(f"Đã xóa file local: {filepath}")
+                except Exception as e:
+                    print(f"Lỗi khi xóa file local: {e}")
+            else:
+                print(f"Giữ lại file local do upload thất bại: {filepath}")
+            
+            # Đợi theo thời gian interval được cấu hình trước khi chụp tiếp
+            for _ in range(INTERVAL):
+                if not screenshot_running:
+                    break
+                time.sleep(1)
+                
+    except Exception as e:
+        print(f'Lỗi trong quá trình chụp ảnh: {e}')
+
+def main():
+    """Hàm main của chương trình"""
+    global screenshot_thread
+    
+    # Dọn dẹp file cũ hơn 7 ngày khi khởi động chương trình
+    print('Bắt đầu dọn dẹp file cũ hơn 7 ngày...')
+    cleanup_old_files(save_dir, days_to_keep=7)
+    print('Hoàn thành dọn dẹp file cũ.')
+    
+    # Bắt đầu thread chụp ảnh
+    screenshot_thread = threading.Thread(target=screenshot_worker, daemon=True)
+    screenshot_thread.start()
+    
+    # Thiết lập system tray icon
+    icon = setup_tray_icon()
+    
+    # Chạy system tray (blocking)
+    icon.run()
+
+if __name__ == "__main__":
+    main()
